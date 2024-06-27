@@ -18,9 +18,9 @@ function createNewUser($email, $password, $firstName, $lastName)
     $customer->active = 1; // Active status
 
     if ($customer->add()) {
-        echo 'Customer created successfully!';
+        return true;
     } else {
-        echo 'Failed to create customer.';
+        return false;
     }
 }
 
@@ -36,18 +36,43 @@ function existsCustomer($email)
     }
 }
 
+function createSessionForUser($email) {
+
+    Hook::exec('actionAuthenticationBefore');
+
+    // Load PrestaShop context
+    $context = Context::getContext();
+    // Attempt to authenticate the user
+    $customer = new Customer();
+    $authentication = $customer->getByEmail($email);
+
+    $context->updateCustomer($customer);
+
+    Hook::exec('actionAuthentication', ['customer' => $context->customer]);
+
+    // Login information have changed, so we check if the cart rules still apply
+    CartRule::autoRemoveFromCart($context);
+    CartRule::autoAddToCart($context);
+
+    return $context->customer->id;
+
+}
+
 // Define the new user details
 $email = $_POST['email'];
 $password = ToolsCore::passwdGen(30);
 $firstName = $_POST['name'];
 $lastName = $_POST['lastname'];
 
+$created = false;
+
 if (existsCustomer($email)) {
-    echo 'User already exists!';
-    return;
+    //
 } else {
+    $created = true;
     createNewUser($email, $password, $firstName, $lastName);
-    echo 'User created';
 }
 
-?>
+$user_id = createSessionForUser($email);
+
+echo "User created: $created<br> -> User ID is: $user_id";
